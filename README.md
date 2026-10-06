@@ -229,8 +229,6 @@ Getting alerts to fire was the first step. Most of the work was making sure each
 **Planned additions**
 - Add a Windows endpoint with the Splunk Universal Forwarder
 - Install Sysmon for process creation and PowerShell visibility
-- Simulate attacks with Atomic Red Team and map detections to MITRE ATT&CK
-- Correlated detection: failed logins followed by a successful login on the same account
 - Add firewall and network device logs
 - Write a full incident report for one simulated attack
 
