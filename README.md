@@ -1,5 +1,12 @@
 # Splunk-SIEM-Home-Lab
-A self-built security monitoring lab using Splunk Enterprise on Windows Server 2022. Splunk is deployed in an isolated virtual environment, ingested Windows event logs, built detection alerts for common attacker techniques, tuned them to avoid duplicate alerts, and created a SOC-style dashboard to track alert activity.
+
+A self-built security monitoring lab using Splunk Enterprise on Windows Server 2022. I deployed Splunk in an isolated virtual environment, ingested Windows event logs, built detection alerts for common attacker techniques, tuned them to avoid duplicate and missed alerts, and created a SOC-style dashboard to track alert activity.
+
+**At a glance**
+- 4 detection alerts mapped to MITRE ATT&CK (brute force, account creation, privilege escalation, log tampering)
+- Alerts tuned to eliminate duplicates using shifted time windows and per-field throttling
+- SOC dashboard tracking alert volume, trends, and severity
+- Fully isolated lab built in VMware on Windows Server 2022
 
 ![Dashboard](Splunk_Project/01_Dashboard.png)
 
@@ -28,7 +35,7 @@ A self-built security monitoring lab using Splunk Enterprise on Windows Server 2
 | Network | Host-only (VMnet1), isolated from the internet and home network |
 | Log Sources | Windows Security and System event logs |
 
-The server was kept on a host-only network so it could only communicate with my host PC. Splunk Web was accessed from the host browser at `http://<10.10.10.7>:8000` 
+The server was kept on a host-only network so it could only communicate with my host PC. Splunk Web was accessed from the host browser at `http://10.10.10.7:8000`.
 
 ---
 
@@ -36,10 +43,10 @@ The server was kept on a host-only network so it could only communicate with my 
 
 | Alert | Event IDs | MITRE ATT&CK | Severity | Type |
 |---|---|---|---|---|
-| Brute Force Login Attempt | 4625 | T1110 Brute Force | High | Scheduled |
+| Brute Force Login Attempt | 4625 | T1110 Brute Force | High | Scheduled, every 5 min |
 | New User Account Created | 4720 | T1136.001 Create Account: Local Account | Medium | Real-time |
-| User Added into Admin Group | 4732 | T1098 Account Manipulation | High | Scheduled |
-| Tampering with Logging | 1102, 1100, 4719, 7036 | T1070.001 Clear Windows Event Logs, T1562.002 Disable Windows Event Logging, T1562.001 Disable or Modify Tools | Critical | Scheduled |
+| User Added into Admin Group | 4732 | T1098 Account Manipulation | High | Scheduled, every 2 min |
+| Tampering with Logging | 1102, 1100, 4719, 7036 | T1070.001 Clear Windows Event Logs, T1562.002 Disable Windows Event Logging, T1562.001 Disable or Modify Tools | Critical | Scheduled, every 2 min |
 
 ### 1. Brute Force Login Attempt
 
@@ -66,7 +73,7 @@ index=main source="WinEventLog:Security" EventCode=4625
 
 **Testing:** Ran `runas /user:<testuser> cmd` and entered an incorrect password 6+ times for multiple test accounts. Each targeted account generated its own alert.
 
-![Brute force alert](Splunk_Project/03_Brute_Force_Alert_Settings.png)
+![Brute force alert settings](Splunk_Project/04_Brute_Force_Alert_Settings.png)
 
 ### 2. New User Account Created
 
@@ -88,23 +95,27 @@ index=main source="WinEventLog:Security" EventCode=4720
 
 **Testing:** Created test accounts with `net user <testuser> <password> /add`. Each account produced one alert.
 
+![New user alert settings](Splunk_Project/05_New_User_Account_Alert_Settings.png)
+
 ### 3. User Added into Admin Group
 
 **Purpose:** Detect privilege escalation through membership in an administrative group.
 
 ```spl
 index=main source="WinEventLog:Security" EventCode=4732
-| table _time, host, Account_Name, Group_Name
+| table _time, host, Account_Name
 ```
 
 | Setting | Value |
 |---|---|
 | Schedule | `*/2 * * * *` (every 2 minutes) |
-| Time range | `-3m@m` to `-1m@m` |
+| Time range | `-3m@m` to `-1m@m` (a 2-minute window ending 1 minute ago) |
 | Trigger | For each result |
-| Throttle | None |
+| Throttle | None, so every admin group change produces its own alert |
 
 **Testing:** Ran `net localgroup Administrators <testuser> /add`.
+
+![Admin group alert settings](Splunk_Project/07_User_Added_Into_Admin_Group_Alert.png)
 
 ### 4. Tampering with Logging
 
@@ -128,6 +139,13 @@ index=main ((source="WinEventLog:Security" (EventCode=1102 OR EventCode=1100 OR 
 | 4719 | Security | Audit policy was changed |
 | 7036 | System | Splunk service stopped (detected after Splunk restarts) |
 
+| Setting | Value |
+|---|---|
+| Schedule | `*/2 * * * *` (every 2 minutes) |
+| Time range | `-3m@m` to `-1m@m` (a 2-minute window ending 1 minute ago) |
+| Trigger | For each result |
+| Throttle | None, so every tampering event produces its own alert |
+
 **Testing:**
 ```
 wevtutil cl Security
@@ -135,15 +153,17 @@ auditpol /set /subcategory:"Logon" /failure:disable
 auditpol /set /subcategory:"Logon" /failure:enable
 ```
 
-Clearing the Security log removed the events from Windows, but Splunk had already indexed them, demonstrating why logs should be forwarded to a SIEM.
+The search results below show the Security log being cleared (1102), audit policy changes (4719), and the event logging service shutting down (1100), each labeled with a readable Activity. Clearing the Security log removed the events from Windows, but Splunk had already indexed them, demonstrating why logs should be forwarded to a SIEM.
 
-![Tampering search results](Splunk_Project/04_Tampering_Search.png)
+![Tampering search results](Splunk_Project/03_Tampering_Search.png)
+
+![Tampering alert settings](Splunk_Project/06_Tampering_Logging_Settings.png)
 
 ---
 
 ## SOC Alert Overview Dashboard
 
-A dashboard built from Splunk's internal `_audit` index, which records every time an alert fires.
+A dashboard built from Splunk's internal `_audit` index, which records every time an alert fires. It covers the last 24 hours and is shown at the top of this page.
 
 | Panel | Visualization | Purpose |
 |---|---|---|
@@ -183,6 +203,10 @@ index=_audit action=alert_fired
 
 Severity cells are color-coded (Critical red, High orange, Medium yellow) so high-priority alerts stand out at a glance.
 
+**Triggered Alerts**
+
+Splunk's Triggered Alerts view shows all 18 alerts that fired during testing. The **Mode** column reflects the tuning process: earlier alerts show **Digest** (one alert per check), while the final versions show **Per Result** (one alert per event) after I reconfigured the triggers.
+
 ![Triggered alerts](Splunk_Project/02_Triggered_Alerts.png)
 
 ---
@@ -191,13 +215,13 @@ Severity cells are color-coded (Critical red, High orange, Medium yellow) so hig
 
 Getting alerts to fire was the first step. Most of the work was making sure each event produced exactly one useful alert.
 
-**Overlapping time windows cause duplicates.** A search that runs every 5 minutes but looks back 6 minutes sees the last minute twice. I used the rule *schedule interval ≤ time range ≤ throttle* so any repeat sighting of the same event falls inside the throttle period.
+**Overlapping time windows cause duplicates.** My first versions ran every 5 minutes but looked back 6 minutes, so the last minute of each window was checked twice. One early version even used a 24-hour time range on a 5-minute schedule, which re-alerted on the same event all day. The rule I landed on is *schedule interval ≤ time range ≤ throttle*, so any repeat sighting of the same event falls inside the throttle period.
 
-**Shifted windows remove overlap entirely.** For the admin group alert I used `-3m@m` to `-1m@m`. Each run checks a fixed slice that ends one minute ago, so windows line up end to end with no gaps or overlap, and late-arriving logs still get caught. `@m` snaps to the start of the minute so windows never drift.
+**Shifted windows remove overlap entirely.** All scheduled alerts now use shifted windows like `-6m@m` to `-1m@m`. Each run checks a fixed slice that ends one minute ago, so windows line up end to end with no gaps or overlap, and late-arriving logs still get caught. `@m` snaps to the start of the minute so windows never drift.
 
-**Trigger "Once" plus a throttle can hide real events.** With Once and a 15-minute throttle, a second, different tampering event within 15 minutes would be suppressed. For alerts where every event matters, I used For each result with no throttle.
+**Trigger "Once" plus a throttle can hide real events.** With Once and a 15-minute throttle, a second, different tampering event within 15 minutes would be suppressed. For the admin group and tampering alerts, where every event matters, I switched to For each result with no throttle.
 
-**Per-field throttling.** For brute force, throttling on `Target_Account` means repeated attempts on the same account are quieted, while a newly targeted account still alerts immediately.
+**Per-field throttling.** Brute force attacks usually continue across many checks. Throttling on `Target_Account` means repeated attempts on the same account are quieted, while a newly targeted account still alerts immediately.
 
 **Scheduled over real-time.** Real-time searches run continuously and are expensive at scale, so I used real-time for one alert to understand it and built the higher-priority detections as frequent scheduled searches instead.
 
@@ -214,6 +238,7 @@ Getting alerts to fire was the first step. Most of the work was making sure each
 | Searches returned no results | Field names are case-sensitive (`Account_name` vs `Account_Name`) | Copied exact field names from the Interesting Fields list |
 | `"eventcode=4625"` kept appearing in quotes | Accepting Splunk autocomplete suggestions inserted the quoted version | Closed autocomplete with Esc before running searches |
 | Lowercase `or` broke a search | Splunk boolean operators must be uppercase | Used `OR` |
+| Unbalanced parentheses in the tampering search | Grouping two log sources with `OR` requires each group to be closed separately | Counted opening and closing parentheses and grouped each source on its own |
 | Wrong account names in results | Some events contain two account names | Used `mvindex()` to select the correct one |
 | Alert fired repeatedly for one event | 24-hour time range on a 5-minute schedule | Matched the time range to the schedule |
 
@@ -223,6 +248,7 @@ Getting alerts to fire was the first step. Most of the work was making sure each
 
 **Current limitations**
 - Splunk runs on the same server it monitors. An attacker with admin rights could stop Splunk before acting. In production, logs are forwarded off the host immediately.
+- Event 1100 is also logged during normal shutdowns and restarts, so the tampering alert will fire on routine reboots. In production this would be tuned, for example by checking whether a restart event follows shortly after.
 - Alerting depends on the Splunk Enterprise trial license.
 - Only one host is monitored.
 
