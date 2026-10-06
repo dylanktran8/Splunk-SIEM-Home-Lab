@@ -1,7 +1,7 @@
 # Splunk-SIEM-Home-Lab
 A self-built security monitoring lab using Splunk Enterprise on Windows Server 2022. Splunk is deployed in an isolated virtual environment, ingested Windows event logs, built detection alerts for common attacker techniques, tuned them to avoid duplicate alerts, and created a SOC-style dashboard to track alert activity.
 
-![Dashboard](screenshots/01-soc-alert-overview-dashboard.png)
+![Dashboard](Splunk_Project/01_Dashboard.png)
 
 ---
 
