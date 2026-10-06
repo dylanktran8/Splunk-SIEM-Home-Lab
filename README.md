@@ -60,7 +60,7 @@ index=main source="WinEventLog:Security" EventCode=4625
 | Setting | Value |
 |---|---|
 | Schedule | `*/5 * * * *` (every 5 minutes) |
-| Time range | Last 6 minutes |
+| Time range | `-6m@m` to `-1m@m` (a 5-minute window ending 1 minute ago) |
 | Trigger | For each result |
 | Throttle | 15 minutes, suppressed per `Target_Account` |
 
