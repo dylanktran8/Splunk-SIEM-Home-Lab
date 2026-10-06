@@ -66,7 +66,7 @@ index=main source="WinEventLog:Security" EventCode=4625
 
 **Testing:** Ran `runas /user:<testuser> cmd` and entered an incorrect password 6+ times for multiple test accounts. Each targeted account generated its own alert.
 
-![Brute force alert](screenshots/03-brute-force-alert-settings.png)
+![Brute force alert](Splunk_Project/03_Brute_Force_Alert_Settings.png)
 
 ### 2. New User Account Created
 
@@ -137,7 +137,7 @@ auditpol /set /subcategory:"Logon" /failure:enable
 
 Clearing the Security log removed the events from Windows, but Splunk had already indexed them, demonstrating why logs should be forwarded to a SIEM.
 
-![Tampering search results](screenshots/04-tampering-search-results.png)
+![Tampering search results](Splunk_Project/04_Tampering_Search.png)
 
 ---
 
@@ -183,7 +183,7 @@ index=_audit action=alert_fired
 
 Severity cells are color-coded (Critical red, High orange, Medium yellow) so high-priority alerts stand out at a glance.
 
-![Triggered alerts](screenshots/02-triggered-alerts.png)
+![Triggered alerts](Splunk_Project/02_Triggered_Alerts.png)
 
 ---
 
