@@ -28,7 +28,7 @@ A self-built security monitoring lab using Splunk Enterprise on Windows Server 2
 | Network | Host-only (VMnet1), isolated from the internet and home network |
 | Log Sources | Windows Security and System event logs |
 
-The server was kept on a host-only network so it could only communicate with my host PC. Splunk Web was accessed from the host browser at `http://<server-ip>:8000` after opening TCP 8000 in Windows Firewall.
+The server was kept on a host-only network so it could only communicate with my host PC. Splunk Web was accessed from the host browser at `http://<server-ip>:8000` 
 
 ---
 
