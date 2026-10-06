@@ -248,6 +248,7 @@ Getting alerts to fire was the first step. Most of the work was making sure each
 
 **Current limitations**
 - Splunk runs on the same server it monitors. An attacker with admin rights could stop Splunk before acting. In production, logs are forwarded off the host immediately.
+- The Splunk service stop detection (7036) only fires if Splunk restarts quickly. If Splunk is stopped for longer than the alert's time window, the event is collected after restart but its timestamp falls outside the window, so it appears in searches but does not trigger the alert. Detecting an extended outage requires monitoring from a separate system, such as alerting when a host stops sending logs.
 - Event 1100 is also logged during normal shutdowns and restarts, so the tampering alert will fire on routine reboots. In production this would be tuned, for example by checking whether a restart event follows shortly after.
 - Alerting depends on the Splunk Enterprise trial license.
 - Only one host is monitored.
